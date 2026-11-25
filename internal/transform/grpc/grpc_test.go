@@ -16,6 +16,7 @@ import (
 
 	transformv1 "github.com/ironsh/iron-proxy/gen/transform/v1"
 	"github.com/ironsh/iron-proxy/internal/hostmatch"
+	"github.com/ironsh/iron-proxy/internal/tenant"
 	"github.com/ironsh/iron-proxy/internal/transform"
 )
 
@@ -588,4 +589,24 @@ func TestSendResponseBody_UncappedDefault(t *testing.T) {
 	_, err := gt.TransformResponse(context.Background(), testContext(), req, resp)
 	require.NoError(t, err)
 	require.Equal(t, bigBody, srv.lastRespProto.GetResponse().GetBody())
+}
+
+func TestTransformRequest_TenantInContext(t *testing.T) {
+	srv := &fakeServer{reqAction: transformv1.TransformAction_TRANSFORM_ACTION_CONTINUE}
+	addr := startFakeServer(t, srv)
+	gt := newTestTransform(t, "test", addr, false, false)
+
+	req, _ := http.NewRequest("GET", "https://example.com/foo", nil)
+	_, err := gt.TransformRequest(context.Background(), testContext(), req)
+	require.NoError(t, err)
+	require.Nil(t, srv.lastReqProto.GetContext().GetTenant(), "no tenant outside tenancy mode")
+
+	tok := &tenant.Token{Raw: "secret-jwt", Subject: "homelab", ID: "j1"}
+	req = req.WithContext(tenant.WithToken(req.Context(), tok))
+	_, err = gt.TransformRequest(context.Background(), testContext(), req)
+	require.NoError(t, err)
+	got := srv.lastReqProto.GetContext().GetTenant()
+	require.Equal(t, "homelab", got.GetSubject())
+	require.Equal(t, "j1", got.GetId())
+	require.NotContains(t, srv.lastReqProto.String(), "secret-jwt", "the raw token must not reach the transform")
 }

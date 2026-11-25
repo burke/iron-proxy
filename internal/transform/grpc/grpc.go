@@ -21,6 +21,7 @@ import (
 
 	transformv1 "github.com/ironsh/iron-proxy/gen/transform/v1"
 	"github.com/ironsh/iron-proxy/internal/hostmatch"
+	"github.com/ironsh/iron-proxy/internal/tenant"
 	"github.com/ironsh/iron-proxy/internal/transform"
 )
 
@@ -159,7 +160,7 @@ func (g *GRPCTransform) TransformRequest(ctx context.Context, tctx *transform.Tr
 	}
 
 	resp, err := g.client.TransformRequest(ctx, &transformv1.TransformRequestRequest{
-		Context: transformContextToProto(tctx),
+		Context: transformContextToProto(tctx, req),
 		Request: pbReq,
 	})
 	if err != nil {
@@ -200,7 +201,7 @@ func (g *GRPCTransform) TransformResponse(ctx context.Context, tctx *transform.T
 	}
 
 	grpcResp, err := g.client.TransformResponse(ctx, &transformv1.TransformResponseRequest{
-		Context:  transformContextToProto(tctx),
+		Context:  transformContextToProto(tctx, req),
 		Request:  pbReq,
 		Response: pbResp,
 	})
@@ -234,9 +235,12 @@ func (g *GRPCTransform) Close() error {
 
 // --- proto conversion helpers ---
 
-func transformContextToProto(tctx *transform.TransformContext) *transformv1.TransformContext {
+func transformContextToProto(tctx *transform.TransformContext, req *http.Request) *transformv1.TransformContext {
 	pb := &transformv1.TransformContext{
 		Sni: tctx.SNI,
+	}
+	if tok, ok := tenant.FromContext(req.Context()); ok {
+		pb.Tenant = &transformv1.TenantInfo{Subject: tok.Subject, Id: tok.ID}
 	}
 	if tctx.ClientCert != nil {
 		pb.ClientCertDer = tctx.ClientCert.Raw

@@ -25,6 +25,15 @@ message TransformContext {
   string sni = 1;
   bytes client_cert_der = 2;
   TunnelInfo tunnel = 3;
+  // The tenant a request belongs to in tenancy mode; unset otherwise.
+  TenantInfo tenant = 4;
+}
+
+message TenantInfo {
+  // The tenant token's `sub` claim.
+  string subject = 1;
+  // The tenant token's `jti` claim, if any.
+  string id = 2;
 }
 
 message TunnelInfo {
