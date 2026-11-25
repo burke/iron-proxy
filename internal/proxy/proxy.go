@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/ironsh/iron-proxy/internal/tenancy"
 	"github.com/ironsh/iron-proxy/internal/tenant"
+	"github.com/ironsh/iron-proxy/internal/tlspin"
 	"io"
 	"log/slog"
 	"net"
@@ -50,6 +51,7 @@ type Proxy struct {
 	transport            *http.Transport
 	resolver             *net.Resolver
 	guard                *dnsguard.Guard
+	upstreamPins         tlspin.Pins
 	mcpPolicy            *mcp.PolicyHolder
 	mcpGateway           *mcpgateway.Holder
 	responseRetryHandler *responseretry.Handler
@@ -96,6 +98,8 @@ type Options struct {
 	// an upstream SOCKS5/HTTP CONNECT proxy (see http.Transport.Proxy). nil
 	// means connect directly. Use config.UpstreamProxy.ProxyFunc to build one.
 	UpstreamProxy func(*http.Request) (*url.URL, error)
+	// UpstreamPins trusts these upstream hosts by public-key hash (tlspin).
+	UpstreamPins tlspin.Pins
 	// Tenancy, when non-nil, enables tenancy mode: each CONNECT must carry a
 	// tenant token, and the tunnel's requests run through that tenant's
 	// pipeline instead of Pipeline. Requests without a tenant are refused.
@@ -127,9 +131,10 @@ func New(opts Options) *Proxy {
 		tunnelDone:           make(chan struct{}),
 		certCache:            opts.CertCache,
 		pipeline:             opts.Pipeline,
-		transport:            buildTransport(opts.Resolver, guard, opts.UpstreamResponseHeaderTimeout, opts.UpstreamProxy),
+		transport:            buildTransport(opts.Resolver, guard, opts.UpstreamResponseHeaderTimeout, opts.UpstreamProxy, opts.UpstreamPins),
 		resolver:             opts.Resolver,
 		guard:                guard,
+		upstreamPins:         opts.UpstreamPins,
 		mcpPolicy:            opts.MCPPolicy,
 		mcpGateway:           opts.MCPGateway,
 		responseRetryHandler: opts.ResponseRetryHandler,
@@ -848,8 +853,8 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request, scheme, 
 	var upstreamConn net.Conn
 	var err error
 	if scheme == "https" {
-		tlsDialer := &tls.Dialer{NetDialer: dialer, Config: &tls.Config{MinVersion: tls.VersionTLS12}}
-		upstreamConn, err = tlsDialer.DialContext(r.Context(), "tcp", upstreamAddr)
+		dial := tlspin.DialTLS(dialer.DialContext, &tls.Config{MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}}, p.upstreamPins)
+		upstreamConn, err = dial(r.Context(), "tcp", upstreamAddr)
 	} else {
 		upstreamConn, err = dialer.DialContext(r.Context(), "tcp", upstreamAddr)
 	}
@@ -1071,7 +1076,7 @@ func (p *Proxy) writeResponse(w http.ResponseWriter, resp *http.Response) {
 // proxyFunc, when non-nil, routes upstream requests through an upstream
 // SOCKS5/HTTP CONNECT proxy; the dialer (and thus guard.DialControl) then
 // applies to the proxy connection rather than the final target.
-func buildTransport(resolver *net.Resolver, guard *dnsguard.Guard, responseHeaderTimeout time.Duration, proxyFunc func(*http.Request) (*url.URL, error)) *http.Transport {
+func buildTransport(resolver *net.Resolver, guard *dnsguard.Guard, responseHeaderTimeout time.Duration, proxyFunc func(*http.Request) (*url.URL, error), pins tlspin.Pins) *http.Transport {
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
@@ -1081,7 +1086,7 @@ func buildTransport(resolver *net.Resolver, guard *dnsguard.Guard, responseHeade
 	if responseHeaderTimeout <= 0 {
 		responseHeaderTimeout = config.DefaultUpstreamResponseHeaderTimeout
 	}
-	return &http.Transport{
+	t := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
@@ -1095,6 +1100,12 @@ func buildTransport(resolver *net.Resolver, guard *dnsguard.Guard, responseHeade
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: responseHeaderTimeout,
 	}
+	if len(pins) > 0 {
+		// Pinned hosts are checked by key at dial time (tlspin), where the host
+		// is known; crypto/tls reports no server name for an IP target.
+		t.DialTLSContext = tlspin.DialTLS(dialer.DialContext, t.TLSClientConfig, pins)
+	}
+	return t
 }
 
 func (p *Proxy) doUpstream(req *http.Request) (*http.Response, error) {

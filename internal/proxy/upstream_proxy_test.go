@@ -38,7 +38,7 @@ func TestBuildTransport_RoutesThroughUpstreamProxy(t *testing.T) {
 
 	guard, err := dnsguard.New(nil)
 	require.NoError(t, err)
-	transport := buildTransport(nil, guard, 0, proxyFunc)
+	transport := buildTransport(nil, guard, 0, proxyFunc, nil)
 	defer transport.CloseIdleConnections()
 
 	req, err := http.NewRequest(http.MethodGet, origin.URL, nil)
@@ -63,7 +63,7 @@ func TestBuildTransport_NilProxyFuncDialsDirect(t *testing.T) {
 
 	guard, err := dnsguard.New(nil)
 	require.NoError(t, err)
-	transport := buildTransport(nil, guard, 0, nil)
+	transport := buildTransport(nil, guard, 0, nil, nil)
 	defer transport.CloseIdleConnections()
 
 	req, err := http.NewRequest(http.MethodGet, origin.URL, nil)

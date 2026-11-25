@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/ironsh/iron-proxy/internal/tlspin"
 	"io"
 	"net/url"
 	"os"
@@ -147,6 +148,9 @@ type TLS struct {
 	CAKey               string `yaml:"ca_key"`
 	CertCacheSize       int    `yaml:"cert_cache_size"`
 	LeafCertExpiryHours int    `yaml:"leaf_cert_expiry_hours"`
+	// UpstreamPins trusts these upstream hosts by public-key hash instead of a CA
+	// chain (self-signed appliances); every other host is verified as usual.
+	UpstreamPins []tlspin.Pin `yaml:"upstream_pins"`
 }
 
 // TLS mode values.

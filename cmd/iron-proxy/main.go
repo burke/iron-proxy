@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/ironsh/iron-proxy/internal/tlspin"
 	"log/slog"
 	"net"
 	"net/http"
@@ -285,6 +286,11 @@ func main() {
 	}
 
 	// Initialize proxy.
+	upstreamPins, err := tlspin.Parse(cfg.TLS.UpstreamPins)
+	if err != nil {
+		logger.Error("initializing upstream pins", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	p := proxy.New(proxy.Options{
 		HTTPAddr:                      cfg.Proxy.HTTPListen,
 		HTTPSAddr:                     cfg.Proxy.HTTPSListen,
@@ -300,6 +306,7 @@ func main() {
 		Logger:                        logger,
 		UpstreamResponseHeaderTimeout: time.Duration(cfg.Proxy.UpstreamResponseHeaderTimeout),
 		UpstreamProxy:                 cfg.Proxy.UpstreamProxy.ProxyFunc(),
+		UpstreamPins:                  upstreamPins,
 		// Managed proxies fail closed until the first control-plane config
 		// has been applied; an un-synced pipeline would otherwise pass
 		// requests through with placeholder credentials intact.
