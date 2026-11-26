@@ -363,7 +363,8 @@ func (p *Proxy) validateRequest(r *http.Request) (reason, msg string) {
 	if containsDotSegments(r.URL.Path) {
 		return "dot_segments", "path contains dot segments"
 	}
-	if r.TLS != nil && r.TLS.ServerName != hostOnly {
+	// A client that dials an IP address sends no SNI (RFC 6066), so an empty SNI with an IP Host is no mismatch.
+	if r.TLS != nil && r.TLS.ServerName != hostOnly && !(r.TLS.ServerName == "" && net.ParseIP(hostOnly) != nil) {
 		p.logger.Warn("SNI/Host mismatch",
 			slog.String("sni", r.TLS.ServerName),
 			slog.String("host", r.Host),
