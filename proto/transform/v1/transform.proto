@@ -59,6 +59,10 @@ message HttpRequest {
   bytes body = 4;
   string host = 5;
   string remote_addr = 6;
+  // The request arrived inside TLS (a MITM'd tunnel or a direct HTTPS
+  // listener). A client that dials an IP address sends no SNI, so without
+  // this a transform cannot tell such a request from plain HTTP.
+  bool tls = 7;
 }
 
 message HeaderValues {

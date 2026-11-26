@@ -305,13 +305,17 @@ func (x *TunnelRequestTransform) GetAnnotations() *structpb.Struct {
 }
 
 type HttpRequest struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Method        string                   `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
-	Url           string                   `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	Headers       map[string]*HeaderValues `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Body          []byte                   `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
-	Host          string                   `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`
-	RemoteAddr    string                   `protobuf:"bytes,6,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
+	state      protoimpl.MessageState   `protogen:"open.v1"`
+	Method     string                   `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
+	Url        string                   `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Headers    map[string]*HeaderValues `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Body       []byte                   `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
+	Host       string                   `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`
+	RemoteAddr string                   `protobuf:"bytes,6,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
+	// The request arrived inside TLS (a MITM'd tunnel or a direct HTTPS
+	// listener). A client that dials an IP address sends no SNI, so without
+	// this a transform cannot tell such a request from plain HTTP.
+	Tls           bool `protobuf:"varint,7,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,6 +390,13 @@ func (x *HttpRequest) GetRemoteAddr() string {
 		return x.RemoteAddr
 	}
 	return ""
+}
+
+func (x *HttpRequest) GetTls() bool {
+	if x != nil {
+		return x.Tls
+	}
+	return false
 }
 
 type HeaderValues struct {
@@ -758,7 +769,7 @@ const file_transform_v1_transform_proto_rawDesc = "" +
 	"\x12request_transforms\x18\x02 \x03(\v2$.transform.v1.TunnelRequestTransformR\x11requestTransforms\"g\n" +
 	"\x16TunnelRequestTransform\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x129\n" +
-	"\vannotations\x18\x02 \x01(\v2\x17.google.protobuf.StructR\vannotations\"\x9a\x02\n" +
+	"\vannotations\x18\x02 \x01(\v2\x17.google.protobuf.StructR\vannotations\"\xac\x02\n" +
 	"\vHttpRequest\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12@\n" +
@@ -766,7 +777,8 @@ const file_transform_v1_transform_proto_rawDesc = "" +
 	"\x04body\x18\x04 \x01(\fR\x04body\x12\x12\n" +
 	"\x04host\x18\x05 \x01(\tR\x04host\x12\x1f\n" +
 	"\vremote_addr\x18\x06 \x01(\tR\n" +
-	"remoteAddr\x1aV\n" +
+	"remoteAddr\x12\x10\n" +
+	"\x03tls\x18\a \x01(\bR\x03tls\x1aV\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x120\n" +
 	"\x05value\x18\x02 \x01(\v2\x1a.transform.v1.HeaderValuesR\x05value:\x028\x01\"&\n" +

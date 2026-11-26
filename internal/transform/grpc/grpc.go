@@ -296,6 +296,7 @@ func httpRequestToProto(req *http.Request, sendBody bool) (*transformv1.HttpRequ
 		Host:       req.Host,
 		RemoteAddr: req.RemoteAddr,
 		Headers:    headersToProto(req.Header),
+		Tls:        req.TLS != nil,
 	}
 
 	if sendBody && req.Body != nil {

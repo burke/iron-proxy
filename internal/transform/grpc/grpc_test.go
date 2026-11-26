@@ -3,11 +3,13 @@ package grpc
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -609,4 +611,20 @@ func TestTransformRequest_TenantInContext(t *testing.T) {
 	require.Equal(t, "homelab", got.GetSubject())
 	require.Equal(t, "j1", got.GetId())
 	require.NotContains(t, srv.lastReqProto.String(), "secret-jwt", "the raw token must not reach the transform")
+}
+
+// A transform has to be able to tell a TLS request from a plain one even
+// when the client sent no SNI, as one that dialed an IP address does.
+func TestHTTPRequestToProtoSaysWhetherTheRequestIsInsideTLS(t *testing.T) {
+	plain := httptest.NewRequest(http.MethodGet, "http://192.168.1.1/status", nil)
+	pb, err := httpRequestToProto(plain, false)
+	require.NoError(t, err)
+	require.False(t, pb.GetTls())
+
+	inside := httptest.NewRequest(http.MethodGet, "/status", nil)
+	inside.Host = "192.168.1.1"
+	inside.TLS = &tls.ConnectionState{}
+	pb, err = httpRequestToProto(inside, false)
+	require.NoError(t, err)
+	require.True(t, pb.GetTls())
 }
