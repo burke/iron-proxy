@@ -428,3 +428,19 @@ func TestGetOrCreate_Concurrent(t *testing.T) {
 	wg.Wait()
 	require.Equal(t, 5, c.Len())
 }
+
+func TestGetOrCreate_IPTargetGetsIPSAN(t *testing.T) {
+	caCert, caKey := generateTestCA(t)
+	c := newTestCache(t, caCert, caKey, 10)
+
+	cert, err := c.GetOrCreate("192.168.1.1")
+	require.NoError(t, err)
+	require.Empty(t, cert.Leaf.DNSNames)
+	require.Len(t, cert.Leaf.IPAddresses, 1)
+	require.Equal(t, "192.168.1.1", cert.Leaf.IPAddresses[0].String())
+
+	pool := x509.NewCertPool()
+	pool.AddCert(caCert)
+	_, err = cert.Leaf.Verify(x509.VerifyOptions{DNSName: "192.168.1.1", Roots: pool})
+	require.NoError(t, err)
+}

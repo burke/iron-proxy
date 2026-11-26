@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -111,6 +112,11 @@ func (c *Cache) generate(domain string) (*tls.Certificate, error) {
 		NotAfter:     now.Add(c.leafExpiry),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	// An IP target needs an IP SAN: strict clients (Erlang/OTP, browsers) ignore a dNSName that holds an address.
+	if ip := net.ParseIP(domain); ip != nil {
+		template.DNSNames = nil
+		template.IPAddresses = []net.IP{ip}
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, c.caCert, &key.PublicKey, c.caKey)
