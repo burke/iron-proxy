@@ -424,7 +424,7 @@ func (p *Proxy) serveTunnelTLS(clientConn net.Conn, target string, tunnelInfo *t
 	}
 
 	tlsConn := tls.Server(clientConn, &tls.Config{
-		GetCertificate: p.getCertificate,
+		GetCertificate: p.tunnelCertificate(target),
 		NextProtos:     []string{"h2", "http/1.1"}, // offer HTTP/2 to tunnelled clients
 	})
 	defer func() { _ = tlsConn.Close() }()

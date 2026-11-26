@@ -266,13 +266,33 @@ func (p *Proxy) Shutdown(ctx context.Context) error {
 }
 
 func (p *Proxy) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return p.certificateFor(hello.ServerName)
+}
+
+// tunnelCertificate is getCertificate for a CONNECT tunnel whose target is known:
+// a client that dials an IP address sends no SNI (RFC 6066 forbids IP literals
+// there), so the leaf is issued for the CONNECT target's host instead.
+func (p *Proxy) tunnelCertificate(target string) func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		host = target
+	}
+	return func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if hello.ServerName != "" {
+			return p.certificateFor(hello.ServerName)
+		}
+		return p.certificateFor(host)
+	}
+}
+
+func (p *Proxy) certificateFor(name string) (*tls.Certificate, error) {
 	if p.certCache == nil {
 		return nil, fmt.Errorf("cert cache not configured")
 	}
-	if hello.ServerName == "" {
+	if name == "" {
 		return nil, fmt.Errorf("no SNI provided")
 	}
-	return p.certCache.GetOrCreate(hello.ServerName)
+	return p.certCache.GetOrCreate(name)
 }
 
 // beginPipelineRun snapshots the pipeline to run (the tenant's in tenancy
