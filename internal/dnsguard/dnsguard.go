@@ -65,6 +65,27 @@ func IsDenyError(err error) bool {
 // The zero value is a valid empty guard whose DialControl is a no-op.
 type Guard struct {
 	prefixes []netip.Prefix
+	// exempt holds exact address:port pairs that may be dialed although a
+	// deny prefix contains the address.
+	exempt map[netip.AddrPort]struct{}
+}
+
+// Exempt lets the exact address:port pairs in addrs through the deny list:
+// one service on an otherwise denied range (a database on loopback that a
+// transform sends requests to) without opening the range. Names are not
+// accepted, and neither is an address without a port.
+func (g *Guard) Exempt(addrs []string) error {
+	for _, raw := range addrs {
+		ap, err := netip.ParseAddrPort(strings.TrimSpace(raw))
+		if err != nil {
+			return fmt.Errorf("invalid upstream_allow_addrs entry %q: must be ip:port: %w", raw, err)
+		}
+		if g.exempt == nil {
+			g.exempt = make(map[netip.AddrPort]struct{})
+		}
+		g.exempt[netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())] = struct{}{}
+	}
+	return nil
 }
 
 // New compiles a Guard from CIDR strings. CIDR notation is required: bare IPs
@@ -139,6 +160,11 @@ func (g *Guard) match(ip netip.Addr) (netip.Prefix, bool) {
 func (g *Guard) DialControl(_ string, address string, _ syscall.RawConn) error {
 	if g == nil || len(g.prefixes) == 0 {
 		return nil
+	}
+	if ap, err := netip.ParseAddrPort(address); err == nil {
+		if _, ok := g.exempt[netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())]; ok {
+			return nil
+		}
 	}
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {

@@ -236,6 +236,10 @@ func main() {
 		logger.Error("initializing upstream deny guard", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	if err := guard.Exempt(cfg.Proxy.UpstreamAllowAddrs); err != nil {
+		logger.Error("initializing upstream deny guard", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	if len(cfg.Proxy.UpstreamDenyCIDRs.Values) > 0 {
 		logger.Info("upstream deny list active",
 			slog.Any("cidrs", cfg.Proxy.UpstreamDenyCIDRs.Values),

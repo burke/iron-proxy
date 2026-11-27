@@ -115,6 +115,10 @@ type Proxy struct {
 	// at connect time against the resolved address. When unset, a secure
 	// default (IMDS + loopback) is applied; set to an empty list to disable.
 	UpstreamDenyCIDRs CIDRList `yaml:"upstream_deny_cidrs"`
+	// UpstreamAllowAddrs lists exact ip:port pairs the proxy may dial even
+	// though upstream_deny_cidrs covers the address: one local service,
+	// without opening the range it is in.
+	UpstreamAllowAddrs []string `yaml:"upstream_allow_addrs"`
 	// UpstreamProxy routes iron-proxy's own outbound connections through an
 	// upstream SOCKS5/HTTP CONNECT proxy. The standard HTTP_PROXY/HTTPS_PROXY/
 	// NO_PROXY environment variables override these fields when set.
