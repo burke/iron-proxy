@@ -530,7 +530,9 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, tunnelInfo *t
 	}
 
 	upstreamScheme := scheme
-	upstreamHost := host
+	// r.Host, not the host read before the pipeline ran: a transform may have
+	// sent the request somewhere else (a gRPC hook that maps a name onto a service).
+	upstreamHost := r.Host
 	upstreamPath := r.URL.Path
 	upstreamRawPath := r.URL.RawPath
 	upstreamURL := ""

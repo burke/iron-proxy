@@ -1118,3 +1118,41 @@ func TestHTTPProxy_FailsClosedUntilReady(t *testing.T) {
 	resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
+
+// rehostTransform sends every request to another host, as a gRPC hook that
+// maps a name onto a service does.
+type rehostTransform struct{ host string }
+
+func (r *rehostTransform) Name() string { return "rehost" }
+
+func (r *rehostTransform) TransformRequest(_ context.Context, _ *transform.TransformContext, req *http.Request) (*transform.TransformResult, error) {
+	req.Host = r.host
+	return &transform.TransformResult{Action: transform.ActionContinue}, nil
+}
+
+func (r *rehostTransform) TransformResponse(_ context.Context, _ *transform.TransformContext, _ *http.Request, _ *http.Response) (*transform.TransformResult, error) {
+	return &transform.TransformResult{Action: transform.ActionContinue}, nil
+}
+
+func TestHTTPProxy_TransformMayChangeTheHost(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, "reached as %s%s", r.Host, r.URL.Path)
+	}))
+	defer upstream.Close()
+	there := upstream.Listener.Addr().String()
+
+	_, httpAddr, _, _ := startProxyWithTransforms(t, []transform.Transformer{&rehostTransform{host: there}})
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/q", httpAddr), nil)
+	require.NoError(t, err)
+	// A name that resolves nowhere: only the transform knows where it lives.
+	req.Host = "house.zeek.ch.invalid:8123"
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "reached as "+there+"/q", string(body))
+}
